@@ -5,17 +5,78 @@ import (
 	"math"
 )
 
-func main() {
-	weights := []int{1, 2, 3, 4, 5}
-	s := 10
+type example struct {
+	weights []int
+	s       int
+}
 
-	// print a/all solution/s to general knapsack problem
-	solutions := compute(weights, s)
-	fmt.Printf("for weights %v and knapsack size %d:\n\t%v\n", weights, s, solutions)
+func main() {
+	examples := []example{
+		{weights: []int{1, 2, 3, 4, 5}, s: 10},
+		{weights: []int{5, 10, 17, 33, 70}, s: 32},
+	}
+
+	for _, example := range examples {
+		solution := solveKnapsack(example.weights, example.s)
+		fmt.Printf("for weights %v and knapsack size %d:\n\t%v\n", example.weights, example.s, solution)
+	}
+}
+
+func solveKnapsack(weights []int, s int) []int {
+	// weights that are superincreasing sequences can be solved trivially
+	if isSuperincreasingSequence(weights) {
+		return easySolve(weights, s)
+	}
+	// other forms need brute forcing
+	return bruteForce(weights, s)
+}
+
+func easySolve(weights []int, s int) []int {
+	var solve func([]int, int, []int, int) []int
+	solve = func(remainingWeights []int, sumOfRemainingWeights int, solution []int, target int) []int {
+		if len(remainingWeights) == 0 || target == 0 {
+			if sum(solution) == s {
+				return solution
+			}
+			return []int{}
+		}
+		last := remainingWeights[len(remainingWeights)-1]
+		weightsWithoutLast := remainingWeights[:len(remainingWeights)-1]
+		sumWithoutLast := sumOfRemainingWeights - last
+
+		if target > sumWithoutLast {
+			return solve(weightsWithoutLast, sumWithoutLast, append(solution, last), target-last)
+		}
+		return solve(weightsWithoutLast, sumWithoutLast, solution, target)
+	}
+	return solve(weights, sum(weights), make([]int, 0), s)
+}
+
+func sum(arr []int) int {
+	sum := 0
+	for _, n := range arr {
+		sum += n
+	}
+	return sum
+}
+
+func isSuperincreasingSequence(arr []int) bool {
+	if len(arr) < 2 {
+		return true
+	}
+	sum := arr[0]
+
+	for i := 1; i < len(arr); i++ {
+		if arr[i] <= sum {
+			return false
+		}
+		sum += arr[i]
+	}
+	return true
 }
 
 // returns an array of sets weights that perfectly fit the knapsack, if any
-func compute(weights []int, s int) [][]int {
+func bruteForce(weights []int, s int) []int {
 	mid := len(weights) / 2
 	left := weights[:mid]
 	right := weights[mid:]
@@ -26,14 +87,17 @@ func compute(weights []int, s int) [][]int {
 	leftSums := computeUniqueSums(left, leftMasks)
 	rightSums := computeUniqueSums(right, rightMasks)
 
-	solutions := make([][]int, 0)
+	// solutions := make([][]int, 0)
 	for sum, leftMask := range leftSums {
 		if rightMask, present := rightSums[s-sum]; present {
-			solutions = append(solutions, constructSolution(weights, leftMask, rightMask))
+			return constructSolution(weights, leftMask, rightMask)
+			// solutions = append(solutions, constructSolution(weights, leftMask, rightMask))
 		}
 	}
 
-	return solutions
+	return []int{}
+
+	// return solutions
 }
 
 func constructSolution(weights, leftMask, rightMask []int) []int {
