@@ -1,28 +1,12 @@
-package main
+package knapsack
 
 import (
-	"fmt"
 	"math"
 )
 
-type example struct {
-	weights []int
-	s       int
-}
-
-func main() {
-	examples := []example{
-		{weights: []int{1, 2, 3, 4, 5}, s: 10},
-		{weights: []int{5, 10, 17, 33, 70}, s: 32},
-	}
-
-	for _, example := range examples {
-		solution := solveKnapsack(example.weights, example.s)
-		fmt.Printf("for weights %v and knapsack size %d:\n\t%v\n", example.weights, example.s, solution)
-	}
-}
-
-func solveKnapsack(weights []int, s int) []int {
+// SolveKnapsack attempts to return a list of weights that exactly fit in a
+// knapsack of size s
+func SolveKnapsack(weights []int, s int) []int {
 	// weights that are superincreasing sequences can be solved trivially
 	if isSuperincreasingSequence(weights) {
 		return easySolve(weights, s)
