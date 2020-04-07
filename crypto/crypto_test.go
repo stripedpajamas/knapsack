@@ -2,50 +2,40 @@ package crypto
 
 import (
 	"bytes"
+	"math/big"
 	"testing"
 )
 
 func TestDecrypt(t *testing.T) {
-	k, err := NewKnapsack(8)
+	k, err := NewKnapsack(100)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	msg := StringToBits("h")
+	msg := StringToBits("hello world")
 	ct, err := Encrypt(k.PublicKey, msg)
+	t.Log(ct)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if d := k.Decrypt(ct); !bytes.Equal(d, msg) {
+	// knapsack is len 100, "hello world" is 88 bits (11 bytes * 8)
+	expected := append(msg, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}...)
+
+	if d := k.Decrypt(ct); !bytes.Equal(d, expected) {
 		t.Errorf("wanted %v, got %v", msg, d)
 	}
 }
 
-func isSuperincreasingSequence(arr []int64) bool {
-	if len(arr) < 2 {
-		return true
-	}
-	sum := arr[0]
-
-	for i := 1; i < len(arr); i++ {
-		if arr[i] <= sum {
-			return false
-		}
-		sum += arr[i]
-	}
-	return true
-}
-
 func TestEncrypt(t *testing.T) {
 	msg := []byte{1, 1, 0, 0, 1, 1, 0}
-	pk := []int64{1, 2, 3, 4, 5, 6, 7}
-	var expected int64 = 14 // 1 + 2 + 5 + 6 = 14
+	pk := intsToBigs([]int64{1, 2, 3, 4, 5, 6, 7})
+	expected := big.NewInt(14) // 1 + 2 + 5 + 6 = 14
 	actual, err := Encrypt(pk, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actual != expected {
+	if actual.Cmp(expected) != 0 {
 		t.Errorf("wanted %v, got %v", expected, actual)
 	}
 }
@@ -58,36 +48,17 @@ func TestStringToBits(t *testing.T) {
 	}
 }
 
-func TestInverse(t *testing.T) {
-	type testCase struct {
-		a        int64
-		n        int64
-		expected int64
-	}
-	testCases := []testCase{
-		{a: 588, n: 881, expected: 442},
-		{a: 3, n: 2000, expected: 667},
-	}
-
-	for idx, tc := range testCases {
-		actual, err := inverse(tc.a, tc.n)
-		if err != nil {
-			t.Fatalf("encountered error with inputs %d, %d: %v", tc.a, tc.n, err)
-		}
-		if actual != tc.expected {
-			t.Errorf("for test case #%d: wanted %v, got %v", idx, tc.expected, actual)
-		}
-	}
-}
-
 func TestSolveKnapsack(t *testing.T) {
 	type testCase struct {
-		weights  []int64
-		s        int64
+		weights  []*big.Int
+		s        *big.Int
 		expected []byte
 	}
 	testCases := []testCase{
-		{weights: []int64{5, 10, 17, 33, 70}, s: 32, expected: []byte{1, 1, 1, 0, 0}},
+		{
+			weights:  intsToBigs([]int64{5, 10, 17, 33, 70}),
+			s:        big.NewInt(32),
+			expected: []byte{1, 1, 1, 0, 0}},
 	}
 
 	for idx, tc := range testCases {
@@ -96,4 +67,12 @@ func TestSolveKnapsack(t *testing.T) {
 			t.Errorf("for test case #%d: wanted %v, got %v", idx, tc.expected, actual)
 		}
 	}
+}
+
+func intsToBigs(ints []int64) []*big.Int {
+	out := make([]*big.Int, len(ints))
+	for i, n := range ints {
+		out[i] = big.NewInt(n)
+	}
+	return out
 }

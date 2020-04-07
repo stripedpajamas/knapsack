@@ -1,53 +1,51 @@
 package crypto
 
 import (
+	"crypto/rand"
 	"errors"
-	"fmt"
-	"math"
-	"math/rand"
+	"math/big"
 )
 
 // Knapsack contains the private data used to generate the public key and decrypt messages
 type Knapsack struct {
-	PublicKey  []int64
-	privateKey []int64
-	m          int64 // modulus
-	w          int64 // random mutating constant
-	wi         int64 // inverse of w
+	PublicKey  []*big.Int
+	privateKey []*big.Int
+	m          *big.Int // modulus
+	w          *big.Int // random mutating constant
+	wi         *big.Int // inverse of w
 }
 
 // NewKnapsack auto generates private knapsack params
-func NewKnapsack(keyLength int) (*Knapsack, error) {
-	if keyLength > 56 { // since we aren't using big.Int yet, we're a little limited here
-		return nil, errors.New("key length must be <= 56")
-	}
+func NewKnapsack(keyLength int64) (*Knapsack, error) {
 	// private sequence should begin at around 2^n (n is the sequence length)
 	// and should end around 2^2n
-	min := math.Pow(2, float64(keyLength))
+	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(keyLength), nil)
 	// max := math.Pow(2, float64(2*keyLength))
 
 	// start by generating a random superincreasing sequence
 	// TODO make this random and not stupid
-	privateKey := []int64{int64(min + 1)}
-	sumSoFar := int64(min + 1)
-	for len(privateKey) < keyLength {
-		privateKey = append(privateKey, sumSoFar+1)
-		sumSoFar += sumSoFar + 1
+	one := big.NewInt(1)
+	privateKey := []*big.Int{new(big.Int).Add(min, one)}
+	sumSoFar := new(big.Int).Add(min, one)
+	for len(privateKey) < int(keyLength) {
+		privateKey = append(privateKey, new(big.Int).Add(sumSoFar, one))
+		sumSoFar.Add(sumSoFar, new(big.Int).Add(sumSoFar, one))
 	}
 
 	// the modulus should be greater than sum(privateKey)
 	// TODO make this random and not stupid
-	m := sumSoFar + 1
-	w := randomCoprime(m)
-	wi, err := inverse(w, m)
+	m := new(big.Int).Add(sumSoFar, one)
+	w, err := randomCoprime(m)
 	if err != nil {
 		return nil, err
 	}
+	wi := new(big.Int).ModInverse(w, m)
 
 	// calculate public key (for now, doing now index mangling)
-	publicKey := make([]int64, len(privateKey))
+	publicKey := make([]*big.Int, len(privateKey))
 	for idx, n := range privateKey {
-		publicKey[idx] = (n * w) % m
+		nw := new(big.Int).Mul(n, w)
+		publicKey[idx] = nw.Mod(nw, m)
 	}
 
 	return &Knapsack{
@@ -60,25 +58,27 @@ func NewKnapsack(keyLength int) (*Knapsack, error) {
 }
 
 // Encrypt uses `message` [m0, ..., mn] as an index map on the public
-// key [p0, ..., pn] to compute ct = sum(m*p). The PK and output are int64
-// as the sums may potentially be quite large. All elements of the message
+// key [p0, ..., pn] to compute ct = sum(m*p). All elements of the message
 // are 0 or 1 as it is the bit representation of some string.
-func Encrypt(publicKey []int64, message []byte) (int64, error) {
+func Encrypt(publicKey []*big.Int, message []byte) (*big.Int, error) {
 	if len(publicKey) < len(message) {
-		return 0, errors.New("public key must be longer than message")
+		return nil, errors.New("public key must be longer than message")
 	}
-	var ct int64
+	ct := big.NewInt(0)
 	for idx, bit := range message {
-		ct += publicKey[idx] * int64(bit)
+		if bit == 1 {
+			ct.Add(ct, publicKey[idx])
+		}
 	}
 	return ct, nil
 }
 
 // Decrypt uses the private information to solve the knapsack problem and returns
 // the message as a slice of bits.
-func (k *Knapsack) Decrypt(ct int64) []byte {
+func (k *Knapsack) Decrypt(ct *big.Int) []byte {
 	// undo the mutation of `w`
-	c := (ct * k.wi) % k.m
+	c := new(big.Int).Mul(ct, k.wi)
+	c.Mod(c, k.m)
 	// solve the knapsack problem with weights=privateKey, target=c
 	msg := solveKnapsack(k.privateKey, c)
 	return msg
@@ -106,22 +106,24 @@ func StringToBits(s string) []byte {
 // this function assumes:
 //   a) the private key is a superincreasing sequence
 //   b) a solution exists (at least for now...may add failure cases later)
-func solveKnapsack(weights []int64, s int64) []byte {
-	var solve func([]int64, int64, int64)
+func solveKnapsack(weights []*big.Int, s *big.Int) []byte {
+	zero := big.NewInt(0)
 	solution := make([]byte, len(weights))
 	solutionIdx := len(weights) - 1
-	solve = func(remainingWeights []int64, sumOfRemainingWeights int64, target int64) {
-		if len(remainingWeights) == 0 || target == 0 {
+
+	var solve func([]*big.Int, *big.Int, *big.Int)
+	solve = func(remainingWeights []*big.Int, sumOfRemainingWeights *big.Int, target *big.Int) {
+		if len(remainingWeights) == 0 || target.Cmp(zero) == 0 {
 			return
 		}
 		last := remainingWeights[len(remainingWeights)-1]
 		weightsWithoutLast := remainingWeights[:len(remainingWeights)-1]
-		sumWithoutLast := sumOfRemainingWeights - last
+		sumWithoutLast := new(big.Int).Sub(sumOfRemainingWeights, last)
 
-		if target > sumWithoutLast {
+		if target.Cmp(sumWithoutLast) > 0 {
 			solution[solutionIdx] = 1
 			solutionIdx--
-			solve(weightsWithoutLast, sumWithoutLast, target-last)
+			solve(weightsWithoutLast, sumWithoutLast, target.Sub(target, last))
 		} else {
 			solution[solutionIdx] = 0
 			solutionIdx--
@@ -133,60 +135,27 @@ func solveKnapsack(weights []int64, s int64) []byte {
 }
 
 // reduces the array with summation fn
-func sum(arr []int64) int64 {
-	var sum int64 = 0
+func sum(arr []*big.Int) *big.Int {
+	sum := new(big.Int)
 	for _, n := range arr {
-		sum += n
+		sum.Add(sum, n)
 	}
 	return sum
 }
 
-// compute the multiplicate inverse of a mod n
-func inverse(a, n int64) (int64, error) {
-	var t, newt int64
-	var r, newr int64
-
-	t, newt = 0, 1
-	r, newr = n, a
-
-	for newr != 0 {
-		var quotient int64 = r / newr
-		t, newt = newt, t-quotient*newt
-		r, newr = newr, r-quotient*newr
-	}
-	if r > 1 {
-		return 0, fmt.Errorf("%d is not invertible mod %d", a, n)
-	}
-	if t < 0 {
-		t = t + n
-	}
-	return t, nil
-}
-
-// compute a mod n without the float64 bs
-func mod(a, n int64) int64 {
-	if a < 0 {
-		a = -a
-	}
-	if a < n {
-		return a
-	}
-	q := a / n
-	return a - (n * q)
-}
-
-func gcd(a, b int64) int64 {
-	if b == 0 {
-		return a
-	}
-	return gcd(b, a%b)
-}
-
 // get a random number m such that gcd(m,n)=1
-func randomCoprime(n int64) int64 {
-	var r int64
-	for r < 2 || gcd(r, n) != 1 {
-		r = rand.Int63n(n)
+func randomCoprime(n *big.Int) (*big.Int, error) {
+	one := big.NewInt(1)
+	two := big.NewInt(2)
+	gcd := new(big.Int)
+	r := new(big.Int)
+	var err error
+	for r.Cmp(two) < 0 || gcd.Cmp(one) != 0 {
+		r, err = rand.Int(rand.Reader, n)
+		if err != nil {
+			return nil, err
+		}
+		gcd.GCD(nil, nil, r, n)
 	}
-	return r
+	return r, nil
 }
