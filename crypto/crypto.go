@@ -67,15 +67,26 @@ func NewKnapsack(keyLength int64) (*Knapsack, error) {
 	}, nil
 }
 
-// Encrypt uses `message` [m0, ..., mn] as an index map on the public
-// key [p0, ..., pn] to compute ct = sum(m*p). All elements of the message
-// are 0 or 1 as it is the bit representation of some string.
-func Encrypt(publicKey []*big.Int, message []byte) (*big.Int, error) {
-	if len(publicKey) < len(message) {
-		return nil, errors.New("public key must be longer than message")
+// EncryptString encrypts `message` using `publicKey`.
+func EncryptString(publicKey []*big.Int, message string) ([]byte, error) {
+	return EncryptBytes(publicKey, []byte(message))
+}
+
+// EncryptBytes encrypts `messageBytes` using `publicKey`.
+func EncryptBytes(publicKey []*big.Int, messageBytes []byte) ([]byte, error) {
+	ct, err := encrypt(publicKey, bytesToBits(messageBytes))
+	if err != nil {
+		return nil, err
+	}
+	return ct.Bytes(), nil
+}
+
+func encrypt(publicKey []*big.Int, messageBits []byte) (*big.Int, error) {
+	if len(publicKey) < len(messageBits) {
+		return nil, errors.New("public key must be longer than messageBits")
 	}
 	ct := big.NewInt(0)
-	for idx, bit := range message {
+	for idx, bit := range messageBits {
 		if bit == 1 {
 			ct.Add(ct, publicKey[idx])
 		}
@@ -83,33 +94,60 @@ func Encrypt(publicKey []*big.Int, message []byte) (*big.Int, error) {
 	return ct, nil
 }
 
-// Decrypt uses the private information to solve the knapsack problem and returns
-// the message as a slice of bits.
+// Decrypt uses the private key to solve the knapsack problem and returns
+// the message reconstructed into bytes from the slice of bits.
 func (k *Knapsack) Decrypt(ct *big.Int) []byte {
 	// undo the mutation of `w`
 	c := new(big.Int).Mul(ct, k.wi)
 	c.Mod(c, k.m)
 	// solve the knapsack problem with weights=privateKey, target=c
 	msg := solveKnapsack(k.privateKey, c)
-	return msg
+	return bitsToBytes(msg)
 }
 
-// StringToBits returns a slice of [x0, x1, ..] where xi is 0 or 1.
+// DecryptBytes constructs the ciphertext int from the bytes
+// and uses the private key to solve the knapsack problem.
+// The message is reconstructed into bytes from the slice of bits.
+func (k *Knapsack) DecryptBytes(ct []byte) []byte {
+	return k.Decrypt(new(big.Int).SetBytes(ct))
+}
+
+// returns a slice of [x0, x1, ..] where xi is 0 or 1.
 // the slice itself is the bits of the binary representation of the bytes
 // of the string -- not the runes.
-func StringToBits(s string) []byte {
-	bytesOfStr := []byte(s)
-	bitLen := 8 * len(bytesOfStr)
-	bitsOfStr := make([]byte, bitLen)
-	for i, b := range bytesOfStr {
+func stringToBits(s string) []byte {
+	return bytesToBits([]byte(s))
+}
+
+func bytesToBits(bs []byte) []byte {
+	bitLen := 8 * len(bs)
+	bitsOfBytes := make([]byte, bitLen)
+	for i, b := range bs {
 		bitIdx := 0
 		for b > 0 {
-			bitsOfStr[(i*8)+bitIdx] = ((b & 0x80) >> 7) & 1 // just the top bit of the byte
+			bitsOfBytes[(i*8)+bitIdx] = ((b & 0x80) >> 7) & 1 // just the top bit of the byte
 			b <<= 1
 			bitIdx++
 		}
 	}
-	return bitsOfStr
+	return bitsOfBytes
+}
+
+func bitsToBytes(bs []byte) []byte {
+	byteLen := len(bs) / 8
+	bytesOfBits := make([]byte, byteLen)
+
+	var currentByte byte
+	for i, b := range bs {
+		currentByte |= b
+		if i%8 == 7 {
+			bytesOfBits[i/8] = currentByte
+			currentByte = 0
+		} else {
+			currentByte <<= 1
+		}
+	}
+	return bytesOfBits
 }
 
 // returns the mask (e.g. [0, 1, 1, 0]) of the weights to choose to reach target

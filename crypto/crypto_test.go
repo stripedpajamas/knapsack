@@ -21,14 +21,14 @@ func TestDecrypt(t *testing.T) {
 		k.wi,
 	)
 
-	msg := StringToBits("hello world")
-	ct, err := Encrypt(k.PublicKey, msg)
+	msg := "hello world"
+	ct, err := EncryptString(k.PublicKey, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Logf("Ciphertext: %v\n", ct)
-	t.Logf("Ciphertext bit-length: %v\n", len(ct.Bytes())*8)
+	t.Logf("Ciphertext bit-length: %v\n", len(ct)*8)
 
 	pubBitLen := 0
 	privBitLen := 0
@@ -41,29 +41,37 @@ func TestDecrypt(t *testing.T) {
 
 	// knapsack is len 100, "hello world" is 88 bits (11 bytes * 8)
 	// so using HasPrefix instead of Equals to account for the padding
-	if d := k.Decrypt(ct); !bytes.HasPrefix(d, msg) {
+	if d := k.DecryptBytes(ct); !bytes.HasPrefix(d, []byte(msg)) {
 		t.Errorf("wanted %v, got %v", msg, d)
 	}
 }
 
-func TestEncrypt(t *testing.T) {
-	msg := []byte{1, 1, 0, 0, 1, 1, 0}
-	pk := intsToBigs([]int64{1, 2, 3, 4, 5, 6, 7})
-	expected := big.NewInt(14) // 1 + 2 + 5 + 6 = 14
-	actual, err := Encrypt(pk, msg)
+func TestEncryptString(t *testing.T) {
+	msg := "h" // 01101000
+	pk := intsToBigs([]int64{1, 2, 3, 4, 5, 6, 7, 8})
+	expected := big.NewInt(10).Bytes() // 2 + 3 + 5 = 10
+	actual, err := EncryptString(pk, msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actual.Cmp(expected) != 0 {
+	if !bytes.Equal(actual, expected) {
 		t.Errorf("wanted %v, got %v", expected, actual)
 	}
 }
 
 func TestStringToBits(t *testing.T) {
 	expected := []byte{0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}
-	actual := StringToBits("hello")
+	actual := stringToBits("hello")
 	if !bytes.Equal(actual, expected) {
 		t.Errorf("wanted %v, got %v", expected, actual)
+	}
+}
+
+func TestBitsToBytes(t *testing.T) {
+	bits := []byte{0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1}
+	bytez := []byte("hello")
+	if actual := bitsToBytes(bits); !bytes.Equal(actual, bytez) {
+		t.Errorf("wanted %v, got %v", bytez, actual)
 	}
 }
 
