@@ -17,31 +17,41 @@ type Knapsack struct {
 
 // NewKnapsack auto generates private knapsack params
 func NewKnapsack(keyLength int64) (*Knapsack, error) {
-	// private sequence should begin at around 2^n (n is the sequence length)
-	// and should end around 2^2n
-	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(keyLength), nil)
-	// max := math.Pow(2, float64(2*keyLength))
-
 	// start by generating a random superincreasing sequence
-	// TODO make this random and not stupid
 	one := big.NewInt(1)
-	privateKey := []*big.Int{new(big.Int).Add(min, one)}
-	sumSoFar := new(big.Int).Add(min, one)
-	for len(privateKey) < int(keyLength) {
-		privateKey = append(privateKey, new(big.Int).Add(sumSoFar, one))
-		sumSoFar.Add(sumSoFar, new(big.Int).Add(sumSoFar, one))
-	}
-
-	// the modulus should be greater than sum(privateKey)
-	// TODO make this random and not stupid
-	m := new(big.Int).Add(sumSoFar, one)
-	w, err := randomCoprime(m)
+	privateKey, err := randomSuperincreasingSequence(keyLength)
 	if err != nil {
 		return nil, err
 	}
-	wi := new(big.Int).ModInverse(w, m)
 
-	// calculate public key (for now, doing now index mangling)
+	// the modulus should be in [ 2^(length * 2 + 1) + 1, 2^(length * 2 + 2) - 1 ]
+	min := new(big.Int).Exp(big.NewInt(2), big.NewInt(keyLength*2+1), nil) // 2^(length * 2 + 1)
+	max := new(big.Int).Exp(big.NewInt(2), big.NewInt(keyLength*2+2), nil) // 2^(length * 2 + 2)
+	min.Add(min, one)                                                      // 2^(length * 2 + 1) + 1
+	max.Sub(max, one)                                                      // 2^(length * 2 + 2) - 1
+	m, err := randomUniform(min, max)
+	if err != nil {
+		return nil, err
+	}
+
+	// w' should be in [ 2, m - 2 ]
+	min.SetInt64(2)
+	max = new(big.Int).Sub(m, min)
+
+	// goal of this loop: get a good `w` that has an inverse mod m
+	var w, wi *big.Int
+	for w == nil || wi == nil {
+		wPrime, err := randomUniform(min, max)
+		if err != nil {
+			return nil, err
+		}
+
+		// w = wPrime/gcd(wPrime, m); wi = inverse of w
+		w = new(big.Int).Div(wPrime, new(big.Int).GCD(nil, nil, wPrime, m))
+		wi = new(big.Int).ModInverse(w, m)
+	}
+
+	// calculate public key (for now, not doing index mangling)
 	publicKey := make([]*big.Int, len(privateKey))
 	for idx, n := range privateKey {
 		nw := new(big.Int).Mul(n, w)
@@ -158,4 +168,39 @@ func randomCoprime(n *big.Int) (*big.Int, error) {
 		gcd.GCD(nil, nil, r, n)
 	}
 	return r, nil
+}
+
+func randomUniform(min, max *big.Int) (*big.Int, error) {
+	n, err := rand.Int(rand.Reader, new(big.Int).Sub(max, min))
+	if err != nil {
+		return nil, err
+	}
+	return n.Add(n, min), nil
+}
+
+func randomSuperincreasingSequence(length int64) ([]*big.Int, error) {
+	// choose random numbers in the range:
+	// [ (2^(i-1) - 1) * 2^length + 1, 2^(i-1) * 2^length ]
+	// the above assumes 1-indexed arrays; our arrays are 0-indexed,
+	// so s/i-1/i/. rand.Int is exclusive, so we need add 1 to the max:
+	// [ (2^i - 1) * 2^length + 1, 2^i * 2^length + 1 ]
+	one := big.NewInt(1)
+	twoLen := new(big.Int).Exp(big.NewInt(2), big.NewInt(length), nil) // 2^length
+	multiplier := new(big.Int).Add(twoLen, one)                        // 2^length + 1
+
+	out := make([]*big.Int, length)
+	for i := range out {
+		max := new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(i)), nil) // 2^i
+		min := new(big.Int).Sub(max, one)                                 // 2^i - 1
+		min.Mul(min, multiplier)                                          // 2^i - 1 * 2^length
+		max.Mul(max, multiplier)                                          // 2^i * 2^length
+
+		n, err := randomUniform(min, max)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = n
+	}
+
+	return out, nil
 }
