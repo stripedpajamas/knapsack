@@ -71,8 +71,8 @@ func NewKnapsack(keyLength int64) (*Knapsack, error) {
 	}, nil
 }
 
-// GetKeyId returns first 10 bytes of sha256(key)
-func GetKeyId(key []*big.Int) []byte {
+// GetKeyID returns first 10 bytes of sha256(key)
+func GetKeyID(key []*big.Int) []byte {
 	h := sha256.New()
 	for _, n := range key {
 		h.Write(n.Bytes())

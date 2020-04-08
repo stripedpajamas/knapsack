@@ -78,7 +78,7 @@ func (e *EncryptCmd) Run() error {
 		return err
 	}
 	pk := knapsack.UnpackPublic(pkf)
-	fmt.Fprintf(os.Stderr, "Encrypting using public key %0x...\n\n", knapsack.GetKeyId(pk))
+	fmt.Fprintf(os.Stderr, "Encrypting using public key %0x...\n\n", knapsack.GetKeyID(pk))
 
 	input, err := getInputBytes(e)
 	if err != nil {
@@ -128,7 +128,7 @@ func (d *DecryptCmd) Run() error {
 		return err
 	}
 	k := knapsack.UnpackPrivate(skf)
-	fmt.Fprintf(os.Stderr, "Decrypting using private key %0x...\n\n", knapsack.GetKeyId(k.PrivateKey))
+	fmt.Fprintf(os.Stderr, "Decrypting using private key %0x...\n\n", knapsack.GetKeyID(k.PrivateKey))
 
 	rawInput, err := getInputBytes(d)
 	if err != nil {
