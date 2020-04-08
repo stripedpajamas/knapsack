@@ -1,4 +1,4 @@
-package crypto
+package knapsack
 
 import (
 	"bytes"
@@ -15,10 +15,10 @@ func TestDecrypt(t *testing.T) {
 	t.Logf(
 		"Knapsack:\n\tPub key: %v\n\tPriv key: %v\n\tM: %v\n\tW: %v\n\tW^-1: %v\n",
 		k.PublicKey,
-		k.privateKey,
-		k.m,
-		k.w,
-		k.wi,
+		k.PrivateKey,
+		k.M,
+		k.W,
+		k.WI,
 	)
 
 	msg := "hello world"
@@ -34,7 +34,7 @@ func TestDecrypt(t *testing.T) {
 	privBitLen := 0
 	for i, n := range k.PublicKey {
 		pubBitLen += len(n.Bytes()) * 8
-		privBitLen += len(k.privateKey[i].Bytes()) * 8
+		privBitLen += len(k.PrivateKey[i].Bytes()) * 8
 	}
 	t.Logf("Public key bit-length: %v\n", pubBitLen)
 	t.Logf("Private key bit-length: %v\n", privBitLen)

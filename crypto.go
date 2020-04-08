@@ -1,7 +1,8 @@
-package crypto
+package knapsack
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"math/big"
 )
@@ -9,14 +10,17 @@ import (
 // Knapsack contains the private data used to generate the public key and decrypt messages
 type Knapsack struct {
 	PublicKey  []*big.Int
-	privateKey []*big.Int
-	m          *big.Int // modulus
-	w          *big.Int // random mutating constant
-	wi         *big.Int // inverse of w
+	PrivateKey []*big.Int
+	M          *big.Int // modulus
+	W          *big.Int // random mutating constant
+	WI         *big.Int // inverse of w
 }
 
 // NewKnapsack auto generates private knapsack params
 func NewKnapsack(keyLength int64) (*Knapsack, error) {
+	if keyLength < 1 {
+		return nil, errors.New("key length must be > 0")
+	}
 	// start by generating a random superincreasing sequence
 	one := big.NewInt(1)
 	privateKey, err := randomSuperincreasingSequence(keyLength)
@@ -60,11 +64,20 @@ func NewKnapsack(keyLength int64) (*Knapsack, error) {
 
 	return &Knapsack{
 		PublicKey:  publicKey,
-		privateKey: privateKey,
-		m:          m,
-		w:          w,
-		wi:         wi,
+		PrivateKey: privateKey,
+		M:          m,
+		W:          w,
+		WI:         wi,
 	}, nil
+}
+
+// GetKeyId returns first 10 bytes of sha256(key)
+func GetKeyId(key []*big.Int) []byte {
+	h := sha256.New()
+	for _, n := range key {
+		h.Write(n.Bytes())
+	}
+	return h.Sum(nil)[:10]
 }
 
 // EncryptString encrypts `message` using `publicKey`.
@@ -98,10 +111,10 @@ func encrypt(publicKey []*big.Int, messageBits []byte) (*big.Int, error) {
 // the message reconstructed into bytes from the slice of bits.
 func (k *Knapsack) Decrypt(ct *big.Int) []byte {
 	// undo the mutation of `w`
-	c := new(big.Int).Mul(ct, k.wi)
-	c.Mod(c, k.m)
+	c := new(big.Int).Mul(ct, k.WI)
+	c.Mod(c, k.M)
 	// solve the knapsack problem with weights=privateKey, target=c
-	msg := solveKnapsack(k.privateKey, c)
+	msg := solveKnapsack(k.PrivateKey, c)
 	return bitsToBytes(msg)
 }
 

@@ -19,7 +19,7 @@ func easySolve(weights []int, s int) []int {
 	var solve func([]int, int, []int, int) []int
 	solve = func(remainingWeights []int, sumOfRemainingWeights int, solution []int, target int) []int {
 		if len(remainingWeights) == 0 || target == 0 {
-			if sum(solution) == s {
+			if sumInts(solution) == s {
 				return solution
 			}
 			return []int{}
@@ -33,10 +33,10 @@ func easySolve(weights []int, s int) []int {
 		}
 		return solve(weightsWithoutLast, sumWithoutLast, solution, target)
 	}
-	return solve(weights, sum(weights), make([]int, 0), s)
+	return solve(weights, sumInts(weights), make([]int, 0), s)
 }
 
-func sum(arr []int) int {
+func sumInts(arr []int) int {
 	sum := 0
 	for _, n := range arr {
 		sum += n
