@@ -204,23 +204,6 @@ func sum(arr []*big.Int) *big.Int {
 	return sum
 }
 
-// get a random number m such that gcd(m,n)=1
-func randomCoprime(n *big.Int) (*big.Int, error) {
-	one := big.NewInt(1)
-	two := big.NewInt(2)
-	gcd := new(big.Int)
-	r := new(big.Int)
-	var err error
-	for r.Cmp(two) < 0 || gcd.Cmp(one) != 0 {
-		r, err = rand.Int(rand.Reader, n)
-		if err != nil {
-			return nil, err
-		}
-		gcd.GCD(nil, nil, r, n)
-	}
-	return r, nil
-}
-
 func randomUniform(min, max *big.Int) (*big.Int, error) {
 	n, err := rand.Int(rand.Reader, new(big.Int).Sub(max, min))
 	if err != nil {

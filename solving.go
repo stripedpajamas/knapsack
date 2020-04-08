@@ -1,3 +1,6 @@
+// this file is not used by the cli;
+// was messing around with different knapsack solving techniques
+
 package knapsack
 
 import (
