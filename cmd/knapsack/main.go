@@ -52,7 +52,7 @@ type InputCmd interface {
 }
 
 type EncryptCmd struct {
-	PublicKeyFile string `required type:"existingfile" name:"pub" short:"p" help:"Path of public key file to use for encryption."`
+	PublicKeyFile string `required type:"existingfile" name:"pubfile" short:"p" help:"Path of public key file to use for encryption."`
 	Text          string `xor:"input" name:"text" short:"t" help:"Text to encrypt."`
 	InFile        string `type:"existingfile" xor:"input" name:"in" short:"i" help:"Input file to encrypt."`
 	OutFile       string `type:"path" name:"out" short:"o" help:"Output file to write ciphertext."`
@@ -102,8 +102,8 @@ func (e *EncryptCmd) Run() error {
 }
 
 type DecryptCmd struct {
-	PrivateKeyFile string `required type:"existingfile" name:"priv" short:"p" help:"Path of private key file to use for decryption."`
-	Text           string `xor:"input" name:"hex" short:"h" help:"Hex-encoded input to decrypt."`
+	PrivateKeyFile string `required type:"existingfile" name:"privfile" short:"p" help:"Path of private key file to use for decryption."`
+	Text           string `xor:"input" name:"text" short:"t" help:"Hex-encoded input to decrypt."`
 	InFile         string `type:"existingfile" xor:"input" name:"in" short:"i" help:"Input file to decrypt."`
 	OutFile        string `type:"path" name:"out" short:"o" help:"Output file to write plaintext."`
 }
