@@ -9,7 +9,7 @@ you have to have Go installed first: [Go install instructions here](https://gola
 
 to install the knapsack cli:
 ```shell
-go install github.com/stripedpajamas/knapsack/cmd/...
+go get github.com/stripedpajamas/knapsack/cmd/...
 ```
 
 ## use
